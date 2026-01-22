@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 SAVE_DIR = 'data'
-MAX_WORKERS = 5  # Number of files to download simultaneously (Don't set it too high to avoid being blocked by arXiv)
+MAX_WORKERS = 5  # Number of files to download simultaneously (Don't set it too high to avoid being blocked by arXiv) <= 10
 KEYWORDS = ["LLM", 
             "RAG", 
             "Deep Learning", 
@@ -29,8 +29,6 @@ def download_one_file(result):
         clean_title = "".join([c for c in result.title if c.isalnum() or c in (' ', '-')]).strip()
         filename = f"{arxiv_id}_{clean_title[:80]}.pdf"
         filepath = os.path.join(SAVE_DIR, filename)
-
-        # Tải file
         response = requests.get(result.pdf_url, timeout=30)
         if response.status_code == 200:
             with open(filepath, 'wb') as f:
@@ -41,7 +39,6 @@ def download_one_file(result):
     except Exception as e:
         return f"Loading error {arxiv_id}: {e}"
 
-# 3. Chạy chương trình chính
 def main():
     query_string = " OR ".join([f'all:"{k}"' for k in KEYWORDS])
     client = arxiv.Client(page_size=100, 
@@ -49,19 +46,16 @@ def main():
                           num_retries=5)
     
     search = arxiv.Search(query=query_string, 
-                          max_results=10000, 
+                          max_results=1000, # Number of articles
                           sort_by=arxiv.SortCriterion.Relevance)
 
     print("Retrieving the list of articles from arXiv...")
     all_results = list(client.results(search))
     print(f"Find {len(all_results)} article. Start multi-threaded loading....")
 
-    # Sử dụng ThreadPoolExecutor để tăng tốc
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # Giao việc cho các luồng
         results = list(executor.map(download_one_file, all_results))
-
-    # In báo cáo kết quả
+    
     for res in results:
         if "Success" in res:
             print(res)
